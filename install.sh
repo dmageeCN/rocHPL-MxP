@@ -4,6 +4,15 @@
 
 #set -x #echo on
 
+# Determine the directory this script lives in, regardless of whether it is
+# sourced or executed, and regardless of bash vs zsh.
+if [[ -z $THISDIR ]]; then
+    THISFILE=${BASH_SOURCE[0]}
+    : ${THISFILE:=$0}
+
+    export THISDIR=$(dirname $(realpath ${THISFILE}))
+fi
+
 # #################################################
 # helper functions
 # #################################################
@@ -14,14 +23,15 @@ function display_help()
   echo "    [-h|--help] prints this help message"
   echo "    [-g|--debug] Set build type to Debug (otherwise build Release)"
   echo "    [--prefix] Path to rocHPL-MxP install location (Default: build/rocHPL-MxP)"
+  echo "    [--build-dir] Path to build directory (Default: ./build)"
   echo "    [--with-rocm=<dir>] Path to ROCm install (Default: /opt/rocm)"
   echo "    [--with-rocblas=<dir>] Path to rocBLAS library (Default: /opt/rocm/rocblas)"
   echo "    [--with-rocsolver=<dir>] Path to rocSOLVER library (Default: /opt/rocm/rocsolver)"
   echo "    [--with-mpi=<dir>] Path to external MPI install (Default: clone+build OpenMPI)"
-  echo "    [--verbose-print] Verbose output during HPL setup (Default: true)"
-  echo "    [--enable-tracing] Annotate profiler traces with rocTX markers (Default: false)"
-  echo "    [--progress-report] Print progress report to terminal during HPL run (Default: true)"
-  echo "    [--detailed-timing] Record detailed timers during HPL run (Default: true)"
+  echo "    [--verbose-print] Verbose output during HPL setup (Default: on)"
+  echo "    [--enable-tracing] Annotate profiler traces with rocTX markers (Default: off)"
+  echo "    [--progress-report] Print progress report to terminal during HPL run (Default: on)"
+  echo "    [--detailed-timing] Record detailed timers during HPL run (Default: on)"
 }
 
 # prereq: ${ID} must be defined before calling
@@ -33,10 +43,10 @@ supported_distro( )
   fi
 
   case "${ID}" in
-    ubuntu|centos|rhel|fedora|sles)
+    ubuntu|centos|rhel|rocky|almalinux|fedora|sles)
         true
         ;;
-    *)  printf "This script is currently supported on Ubuntu, CentOS, RHEL, Fedora and SLES\n"
+    *)  printf "This script is currently supported on Ubuntu, CentOS, RHEL, Rocky, AlmaLinux, Fedora and SLES\n"
         exit 2
         ;;
   esac
@@ -68,7 +78,7 @@ exit_with_error( )
         printf "sudo apt install -y ${library_dependencies_ubuntu[*]}\n"
         ;;
 
-      centos|rhel)
+      centos|rhel|rocky|almalinux)
         printf "sudo yum -y --nogpgcheck install ${library_dependencies_centos[*]}\n"
         ;;
 
@@ -208,15 +218,16 @@ supported_distro
 # global variables
 # #################################################
 install_prefix=rocHPL-MxP
+build_dir=./build
 build_release=true
 with_rocm=/opt/rocm
 with_mpi=tpl/openmpi
 with_rocblas=/opt/rocm/rocblas
 with_rocsolver=/opt/rocm/rocsolver
-verbose_print=true
-enable_tracing=false
-progress_report=true
-detailed_timing=true
+verbose_print=OFF
+enable_tracing=OFF
+progress_report=OFF
+detailed_timing=OFF
 
 # #################################################
 # Parameter parsing
@@ -225,7 +236,7 @@ detailed_timing=true
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,with-rocm:,with-mpi:,with-rocblas:,with-rocsolver:,verbose-print:,enable-tracing:,progress-report:,detailed-timing: --options hg -- "$@")
+  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,build-dir:,with-rocm:,with-mpi:,with-rocblas:,with-rocsolver:,verbose-print,enable-tracing,progress-report,detailed-timing --options hg -- "$@")
 else
   echo "Need a new version of getopt"
   exit_with_error 1
@@ -250,6 +261,9 @@ while true; do
     --prefix)
         install_prefix=${2}
         shift 2 ;;
+    --build-dir)
+        build_dir=${2}
+        shift 2 ;;
     --with-rocm)
         with_rocm=${2}
         shift 2 ;;
@@ -263,17 +277,17 @@ while true; do
         with_rocsolver=${2}
         shift 2 ;;
     --verbose-print)
-        verbose_print=${2}
-        shift 2 ;;
+        verbose_print=ON
+        shift ;;
     --enable-tracing)
-        enable_tracing=${2}
-        shift 2 ;;
+        enable_tracing=ON
+        shift ;;
     --progress-report)
-        progress_report=${2}
-        shift 2 ;;
+        progress_report=ON
+        shift ;;
     --detailed-timing)
-        detailed_timing=${2}
-        shift 2 ;;
+        detailed_timing=ON
+        shift ;;
     --) shift ; break ;;
     *)  echo "Unexpected command line parameter received; aborting";
         exit_with_error 1
@@ -281,8 +295,8 @@ while true; do
   esac
 done
 
-build_dir=./build
-printf "\033[32mCreating project build directory in: \033[33m${build_dir}\033[0m\n"
+echo "--- Creating project build directory in: ${build_dir}"
+echo "--- INSTALLING HPL_MXP to: ${install_prefix}"
 
 # #################################################
 # prep
@@ -297,6 +311,7 @@ cmake_executable=cmake
 # hard-coded path has lesser priority
 export ROCM_PATH=${with_rocm}
 export PATH=${PATH}:${ROCM_PATH}/bin
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ROCM_PATH}/lib:${ROCM_PATH}/lib64
 
 pushd .
   # #################################################
@@ -312,34 +327,19 @@ pushd .
   # #################################################
   # configure & build
   # #################################################
-  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi}
-                        -DROCM_PATH=${with_rocm} -DROCBLAS_PATH=${with_rocblas} -DROCSOLVER_PATH=${with_rocsolver}"
-
-  # build type
+  build_type="Debug"
   if [[ "${build_release}" == true ]]; then
-    cmake_common_options="${cmake_common_options} -DCMAKE_BUILD_TYPE=Release"
-  else
-    cmake_common_options="${cmake_common_options} -DCMAKE_BUILD_TYPE=Debug"
+    build_type="Release"
   fi
-
-  shopt -s nocasematch
-  if [[ "${verbose_print}" == on || "${verbose_print}" == true || "${verbose_print}" == 1 || "${verbose_print}" == enabled ]]; then
-    cmake_common_options="${cmake_common_options} -DHPLMXP_VERBOSE_PRINT=ON"
-  fi
-  if [[ "${progress_report}" == on || "${progress_report}" == true || "${progress_report}" == 1 || "${progress_report}" == enabled ]]; then
-    cmake_common_options="${cmake_common_options} -DHPLMXP_PROGRESS_REPORT=ON"
-  fi
-  if [[ "${detailed_timing}" == on || "${detailed_timing}" == true || "${detailed_timing}" == 1 || "${detailed_timing}" == enabled ]]; then
-    cmake_common_options="${cmake_common_options} -DHPLMXP_DETAILED_TIMING=ON"
-  fi
-  if [[ "${enable_tracing}" == on || "${enable_tracing}" == true || "${enable_tracing}" == 1 || "${enable_tracing}" == enabled ]]; then
-    cmake_common_options="${cmake_common_options} -DHPLMXP_TRACING=ON"
-  fi
-  shopt -u nocasematch
+  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi} -DROCM_PATH=${with_rocm}"
+  cmake_common_options+=" -DROCBLAS_PATH=${with_rocblas} -DROCSOLVER_PATH=${with_rocsolver} -DCMAKE_BUILD_TYPE=${build_type}"
+  cmake_common_options+=" -DHPLMXP_VERBOSE_PRINT=${verbose_print} -DHPLMXP_PROGRESS_REPORT=${progress_report}"
+  cmake_common_options+=" -DHPLMXP_DETAILED_TIMING=${detailed_timing} -DHPLMXP_TRACING=${enable_tracing}"
 
   # Build library with AMD toolchain because of existence of device kernels
   mkdir -p ${build_dir} && cd ${build_dir}
-  ${cmake_executable} ${cmake_common_options} ..
+  echo "${cmake_executable} ${cmake_common_options} ${THISDIR}"
+  ${cmake_executable} ${cmake_common_options} ${THISDIR}
   check_exit_code 2
 
   make -j$(nproc) install
