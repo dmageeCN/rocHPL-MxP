@@ -24,9 +24,7 @@ function display_help()
   echo "    [-g|--debug] Set build type to Debug (otherwise build Release)"
   echo "    [--prefix] Path to rocHPL-MxP install location (Default: build/rocHPL-MxP)"
   echo "    [--build-dir] Path to build directory (Default: ./build)"
-  echo "    [--with-rocm=<dir>] Path to ROCm install (Default: /opt/rocm)"
-  echo "    [--with-rocblas=<dir>] Path to rocBLAS library (Default: /opt/rocm/rocblas)"
-  echo "    [--with-rocsolver=<dir>] Path to rocSOLVER library (Default: /opt/rocm/rocsolver)"
+  echo "    [--with-hip=<dir>] Path to HIP install (Default: /opt/rocm)"
   echo "    [--with-mpi=<dir>] Path to external MPI install (Default: clone+build OpenMPI)"
   echo "    [--verbose-print] Verbose output during HPL setup (Default: on)"
   echo "    [--enable-tracing] Annotate profiler traces with rocTX markers (Default: off)"
@@ -64,11 +62,11 @@ exit_with_error( )
     local library_dependencies_fedora=( "git" "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" "numactl-libs"  "autoconf" "libtool" "automake" "m4" "flex" "libgomp")
     local library_dependencies_sles=(   "git" "make" "cmake" "gcc-c++" "libcxxtools9" "rpm-build" "libnuma-devel" "autoconf" "libtool" "automake" "m4" "flex" "libgomp1")
 
-    if [[ "${with_rocm}" == /opt/rocm ]]; then
-      library_dependencies_ubuntu+=("rocblas" "rocblas-dev" "rocsolver" "rocsolver-dev")
-      library_dependencies_centos+=("rocblas" "rocblas-devel" "rocsolver" "rocsolver-devel")
-      library_dependencies_fedora+=("rocblas" "rocblas-dev" "rocsolver" "rocsolver-dev")
-      library_dependencies_sles+=("rocblas" "rocblas-devel" "rocsolver" "rocsolver-devel")
+    if [[ "${with_hip}" == /opt/rocm ]]; then
+      library_dependencies_ubuntu+=("hipblas" "hipblas-dev" "hipsolver" "hipsolver-dev")
+      library_dependencies_centos+=("hipblas" "hipblas-devel" "hipsolver" "hipsolver-devel")
+      library_dependencies_fedora+=("hipblas" "hipblas-dev" "hipsolver" "hipsolver-dev")
+      library_dependencies_sles+=("hipblas" "hipblas-devel" "hipsolver" "hipsolver-devel")
     fi
 
     printf "Installation failed. Some required packages may be missing.\n"
@@ -122,7 +120,7 @@ install_openmpi( )
     ./autogen.sh; ./autogen.sh #why do we have to run this twice?
     check_exit_code 2
     mkdir build; cd build
-    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_rocm} --without-knem --without-cuda --without-java
+    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_hip} --without-knem --without-cuda --without-java
     check_exit_code 2
     make -j$(nproc)
     check_exit_code 2
@@ -137,7 +135,7 @@ install_openmpi( )
     ./autogen.sh; ./autogen.sh
     check_exit_code 2
     mkdir build; cd build
-    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_rocm} --without-knem --without-cuda --without-java
+    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_hip} --without-knem --without-cuda --without-java
     check_exit_code 2
     make -j$(nproc)
     check_exit_code 2
@@ -220,10 +218,8 @@ supported_distro
 install_prefix=rocHPL-MxP
 build_dir=./build
 build_release=true
-with_rocm=/opt/rocm
+with_hip=/opt/rocm
 with_mpi=tpl/openmpi
-with_rocblas=/opt/rocm/rocblas
-with_rocsolver=/opt/rocm/rocsolver
 verbose_print=OFF
 enable_tracing=OFF
 progress_report=OFF
@@ -236,7 +232,7 @@ detailed_timing=OFF
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,build-dir:,with-rocm:,with-mpi:,with-rocblas:,with-rocsolver:,verbose-print,enable-tracing,progress-report,detailed-timing --options hg -- "$@")
+  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,build-dir:,with-hip:,with-mpi:,verbose-print,enable-tracing,progress-report,detailed-timing --options hg -- "$@")
 else
   echo "Need a new version of getopt"
   exit_with_error 1
@@ -264,17 +260,11 @@ while true; do
     --build-dir)
         build_dir=${2}
         shift 2 ;;
-    --with-rocm)
-        with_rocm=${2}
+    --with-hip)
+        with_hip=${2}
         shift 2 ;;
     --with-mpi)
         with_mpi=${2}
-        shift 2 ;;
-    --with-rocblas)
-        with_rocblas=${2}
-        shift 2 ;;
-    --with-rocsolver)
-        with_rocsolver=${2}
         shift 2 ;;
     --verbose-print)
         verbose_print=ON
@@ -307,11 +297,11 @@ rm -rf ${build_dir}
 # Default cmake executable is called cmake
 cmake_executable=cmake
 
-# We append customary rocm path; if user provides custom rocm path in ${path}, our
+# We append customary hip path; if user provides custom hip path in ${path}, our
 # hard-coded path has lesser priority
-export ROCM_PATH=${with_rocm}
-export PATH=${PATH}:${ROCM_PATH}/bin
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ROCM_PATH}/lib:${ROCM_PATH}/lib64
+export HIP_PATH=${with_hip}
+export PATH=${PATH}:${HIP_PATH}/bin
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HIP_PATH}/lib:${HIP_PATH}/lib64
 
 pushd .
   # #################################################
@@ -331,8 +321,8 @@ pushd .
   if [[ "${build_release}" == true ]]; then
     build_type="Release"
   fi
-  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi} -DROCM_PATH=${with_rocm}"
-  cmake_common_options+=" -DROCBLAS_PATH=${with_rocblas} -DROCSOLVER_PATH=${with_rocsolver} -DCMAKE_BUILD_TYPE=${build_type}"
+  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi} -DHIP_PATH=${with_hip}"
+  cmake_common_options+=" -DCMAKE_BUILD_TYPE=${build_type}"
   cmake_common_options+=" -DHPLMXP_VERBOSE_PRINT=${verbose_print} -DHPLMXP_PROGRESS_REPORT=${progress_report}"
   cmake_common_options+=" -DHPLMXP_DETAILED_TIMING=${detailed_timing} -DHPLMXP_TRACING=${enable_tracing}"
 

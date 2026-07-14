@@ -11,11 +11,12 @@
 #include "hplmxp.hpp"
 #include <random>
 
-rocblas_handle blas_hdl;
-hipStream_t    computeStream;
-rocblas_int*   blas_info;
-fp64_t*        reduction_scratch;
-fp64_t*        h_reduction_scratch;
+hipblasHandle_t   blas_hdl;
+hipsolverHandle_t solver_hdl;
+hipStream_t       computeStream;
+int*              blas_info;
+fp64_t*           reduction_scratch;
+fp64_t*           h_reduction_scratch;
 
 hipEvent_t getrf, lbcast, ubcast;
 hipEvent_t piv;
@@ -81,7 +82,7 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
   HIP_CHECK(hipSetDevice(dev));
 
   /* gpu */
-  HIP_CHECK(hipMalloc(&blas_info, sizeof(rocblas_int)));
+  HIP_CHECK(hipMalloc(&blas_info, sizeof(int)));
   HIP_CHECK(
       hipMalloc(&reduction_scratch, sizeof(double) * REDUCTION_SCRATCH_SIZE));
   HIP_CHECK(hipHostMalloc(&h_reduction_scratch, sizeof(double)));
@@ -102,23 +103,19 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
   HIP_CHECK(hipEventCreate(&piv));
 
 
-  /* Create a rocBLAS handle */
-  ROCBLAS_CHECK(rocblas_create_handle(&blas_hdl));
-  ROCBLAS_CHECK(rocblas_set_pointer_mode(blas_hdl, rocblas_pointer_mode_host));
-  ROCBLAS_CHECK(rocblas_set_stream(blas_hdl, computeStream));
+  /* Create a hipBLAS handle */
+  HIPBLAS_CHECK(hipblasCreate(&blas_hdl));
+  HIPBLAS_CHECK(hipblasSetPointerMode(blas_hdl, HIPBLAS_POINTER_MODE_HOST));
+  HIPBLAS_CHECK(hipblasSetStream(blas_hdl, computeStream));
 
-#ifdef HPLMXP_ROCBLAS_ALLOW_ATOMICS
-  ROCBLAS_CHECK(rocblas_set_atomics_mode(blas_hdl, rocblas_atomics_allowed));
-#else
-  ROCBLAS_CHECK(
-      rocblas_set_atomics_mode(blas_hdl, rocblas_atomics_not_allowed));
-#endif
-
-  rocblas_initialize();
+  /* Create a hipSOLVER handle */
+  HIPSOLVER_CHECK(hipsolverCreate(&solver_hdl));
+  HIPSOLVER_CHECK(hipsolverSetStream(solver_hdl, computeStream));
 }
 
 void HPLMXP_FreeGPU() {
-  ROCBLAS_CHECK(rocblas_destroy_handle(blas_hdl));
+  HIPBLAS_CHECK(hipblasDestroy(blas_hdl));
+  HIPSOLVER_CHECK(hipsolverDestroy(solver_hdl));
 
   HIP_CHECK(hipEventDestroy(getrf));
   HIP_CHECK(hipEventDestroy(lbcast));

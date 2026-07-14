@@ -33,15 +33,15 @@ set(MPI_HOME ${HPLMXP_MPI_DIR})
 find_package(MPI REQUIRED)
 
 # Add some paths
-list(APPEND CMAKE_PREFIX_PATH ${ROCSOLVER_PATH} ${ROCBLAS_PATH} ${ROCM_PATH})
-list(APPEND CMAKE_MODULE_PATH ${ROCM_PATH}/lib/cmake/hip )
+list(APPEND CMAKE_PREFIX_PATH ${HIP_PATH})
+list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/lib/cmake/hip )
 
 if(HPLMXP_TRACING)
   find_library(ROCTRACER NAMES roctracer64
-               PATHS ${ROCM_PATH}/lib
+               PATHS ${HIP_PATH}/lib
                NO_DEFAULT_PATH)
   find_library(ROCTX NAMES roctx64
-               PATHS ${ROCM_PATH}/lib
+               PATHS ${HIP_PATH}/lib
                NO_DEFAULT_PATH)
 
   message("-- roctracer:  ${ROCTRACER}")
@@ -49,13 +49,13 @@ if(HPLMXP_TRACING)
 
   add_library(roc::roctracer SHARED IMPORTED)
   set_target_properties(roc::roctracer PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${ROCM_PATH}/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${HIP_PATH}/include"
     INTERFACE_LINK_LIBRARIES "hip::host"
     IMPORTED_LOCATION "${ROCTRACER}"
     IMPORTED_SONAME "libroctracer.so")
   add_library(roc::roctx SHARED IMPORTED)
   set_target_properties(roc::roctx PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${ROCM_PATH}/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${HIP_PATH}/include"
     INTERFACE_LINK_LIBRARIES "hip::host"
     IMPORTED_LOCATION "${ROCTX}"
     IMPORTED_SONAME "libroctx64.so")
@@ -64,27 +64,33 @@ endif()
 # Find HIP package
 find_package(HIP REQUIRED)
 
-# rocblas
-find_package(rocblas REQUIRED)
+# hipBLAS and hipSOLVER are always installed alongside the base HIP package
+# (under the same install prefix), so no separate path options are needed
+# for them - they are found via the same CMAKE_PREFIX_PATH entry as HIP.
 
-get_target_property(rocblas_LIBRARIES roc::rocblas IMPORTED_LOCATION_RELEASE)
+# hipblas
+find_package(hipblas REQUIRED)
 
-message("-- rocBLAS version:      ${rocblas_VERSION}")
-message("-- rocBLAS include dirs: ${rocblas_INCLUDE_DIRS}")
-message("-- rocBLAS libraries:    ${rocblas_LIBRARIES}")
+get_target_property(hipblas_LIBRARIES roc::hipblas IMPORTED_LOCATION_RELEASE)
+if(NOT hipblas_LIBRARIES)
+  get_target_property(hipblas_LIBRARIES roc::hipblas IMPORTED_LOCATION_NOCONFIG)
+endif()
 
-get_filename_component(ROCBLAS_LIB_PATH ${rocblas_LIBRARIES} DIRECTORY)
+message("-- hipBLAS version:      ${hipblas_VERSION}")
+message("-- hipBLAS include dirs: ${hipblas_INCLUDE_DIRS}")
+message("-- hipBLAS libraries:    ${hipblas_LIBRARIES}")
 
-# rocsolver
-find_package(rocsolver REQUIRED)
+# hipsolver
+find_package(hipsolver REQUIRED)
 
-get_target_property(rocsolver_LIBRARIES roc::rocsolver IMPORTED_LOCATION_RELEASE)
+get_target_property(hipsolver_LIBRARIES roc::hipsolver IMPORTED_LOCATION_RELEASE)
+if(NOT hipsolver_LIBRARIES)
+  get_target_property(hipsolver_LIBRARIES roc::hipsolver IMPORTED_LOCATION_NOCONFIG)
+endif()
 
-message("-- rocSOLVER version:      ${rocsolver_VERSION}")
-message("-- rocSOLVER include dirs: ${rocsolver_INCLUDE_DIRS}")
-message("-- rocSOLVER libraries:    ${rocsolver_LIBRARIES}")
-
-get_filename_component(ROCSOLVER_LIB_PATH ${rocsolver_LIBRARIES} DIRECTORY)
+message("-- hipSOLVER version:      ${hipsolver_VERSION}")
+message("-- hipSOLVER include dirs: ${hipsolver_INCLUDE_DIRS}")
+message("-- hipSOLVER libraries:    ${hipsolver_LIBRARIES}")
 
 # ROCm cmake package
 find_package(ROCmCMakeBuildTools QUIET CONFIG PATHS ${CMAKE_PREFIX_PATH})

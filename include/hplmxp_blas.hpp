@@ -16,8 +16,8 @@
 #ifndef HPLMXP_BLAS_HPP
 #define HPLMXP_BLAS_HPP
 
-#include "rocblas/rocblas.h"
-#include "rocsolver/rocsolver.h"
+#include "hipblas/hipblas.h"
+#include "hipsolver/hipsolver.h"
 
 #define HIP_CHECK(val) hipCheck((val), #val, __FILE__, __LINE__)
 inline void hipCheck(hipError_t        err,
@@ -36,25 +36,44 @@ inline void hipCheck(hipError_t        err,
   }
 }
 
-#define ROCBLAS_CHECK(val) rocBLASCheck((val), #val, __FILE__, __LINE__)
-inline void rocBLASCheck(rocblas_status    err,
+#define HIPBLAS_CHECK(val) hipBLASCheck((val), #val, __FILE__, __LINE__)
+inline void hipBLASCheck(hipblasStatus_t   err,
                          const char* const func,
                          const char* const file,
                          const int         line) {
-  if(err != rocblas_status_success) {
+  if(err != HIPBLAS_STATUS_SUCCESS) {
     fprintf(stderr,
-            "Error: rocblas error in file %s, line %d, error code: %s, %s\n",
+            "Error: hipblas error in file %s, line %d, error code: %s, %s\n",
             file,
             line,
-            rocblas_status_to_string(err),
+            hipblasStatusToString(err),
             func);
     exit(err);
   }
 }
 
-extern rocblas_handle blas_hdl;
-extern hipStream_t    computeStream;
-extern rocblas_int*   blas_info;
+// hipSOLVER has no equivalent of hipblasStatusToString, so the raw status
+// code is printed instead.
+#define HIPSOLVER_CHECK(val) hipSOLVERCheck((val), #val, __FILE__, __LINE__)
+inline void hipSOLVERCheck(hipsolverStatus_t err,
+                           const char* const func,
+                           const char* const file,
+                           const int         line) {
+  if(err != HIPSOLVER_STATUS_SUCCESS) {
+    fprintf(stderr,
+            "Error: hipsolver error in file %s, line %d, error code: %d, %s\n",
+            file,
+            line,
+            static_cast<int>(err),
+            func);
+    exit(static_cast<int>(err));
+  }
+}
+
+extern hipblasHandle_t   blas_hdl;
+extern hipsolverHandle_t solver_hdl;
+extern hipStream_t       computeStream;
+extern int*              blas_info;
 
 extern hipEvent_t getrf, lbcast, ubcast;
 extern hipEvent_t piv;

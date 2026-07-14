@@ -21,13 +21,6 @@
 
 //#define HPLMXP_USE_COLLECTIVES 1
 
-/*
-Enabling atomics will potentially allow more performance optimization
-but will potentailly lead to residual values which vary from run-to-run
-*/
-#undef HPLMXP_ROCBLAS_ALLOW_ATOMICS
-// #define HPLMXP_ROCBLAS_ALLOW_ATOMICS
-
 #include "hplmxp_version.hpp"
 #include "hplmxp_misc.hpp"
 #include "hplmxp_blas.hpp"

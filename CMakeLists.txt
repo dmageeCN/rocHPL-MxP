@@ -30,7 +30,7 @@ option(HPLMXP_PROGRESS_REPORT "Enable printing progess report to terminal during
 option(HPLMXP_DETAILED_TIMING "Enable detailed timers during run" OFF)
 option(HPLMXP_TRACING         "Annotate profiler traces with rocTX markers" OFF)
 
-option(ROCM_PATH "Path to ROCm install" /opt/rocm)
+option(HIP_PATH "Path to HIP install" /opt/rocm)
 option(HPLMXP_MPI_DIR  "Path to MPI library" ${CMAKE_CURRENT_SOURCE_DIR}/tpl/openmpi)
 
 set(CMAKE_INSTALL_PREFIX "rocHPL-MxP" CACHE PATH "Install path prefix, prepended onto install directories")
@@ -38,7 +38,7 @@ set(CMAKE_INSTALL_PREFIX "rocHPL-MxP" CACHE PATH "Install path prefix, prepended
 # CMake modules
 list(APPEND CMAKE_MODULE_PATH
      ${CMAKE_CURRENT_SOURCE_DIR}/cmake
-     ${ROCM_PATH}/hip/cmake)
+     ${HIP_PATH}/hip/cmake)
 
 # Set a default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -148,9 +148,9 @@ target_include_directories(rochplmxp
                            PRIVATE
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-                           $<BUILD_INTERFACE:${ROCM_PATH}/include>
+                           $<BUILD_INTERFACE:${HIP_PATH}/include>
                            $<BUILD_INTERFACE:${HPLMXP_MPI_DIR}/include>
-                           $<BUILD_INTERFACE:${ROCM_PATH}/include/roctracer>)
+                           $<BUILD_INTERFACE:${HIP_PATH}/include/roctracer>)
 
 #HIP
 target_link_libraries(rochplmxp PRIVATE hip::host)
@@ -159,8 +159,8 @@ target_link_libraries(rochplmxp PRIVATE hip::host)
 target_link_libraries(rochplmxp PRIVATE MPI::MPI_CXX)
 
 # Target link libraries
-target_link_libraries(rochplmxp PRIVATE roc::rocblas)
-target_link_libraries(rochplmxp PRIVATE roc::rocsolver)
+target_link_libraries(rochplmxp PRIVATE roc::hipblas)
+target_link_libraries(rochplmxp PRIVATE roc::hipsolver)
 
 if(HPLMXP_TRACING)
   target_link_libraries(rochplmxp PRIVATE roc::roctracer)
