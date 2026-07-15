@@ -140,6 +140,19 @@ hip_add_executable(rochplmxp ${rochplmxp_source} ${rochplmxp_device_source})
 
 target_compile_options(rochplmxp PRIVATE ${CMAKE_HOST_FLAGS})
 
+# hip_add_executable() only arranges for __HIP_PLATFORM_AMD__/__HIP_PLATFORM_NVIDIA__
+# to be defined for sources routed through the special HIP compiler path (the
+# *_device.cpp files tagged with HIP_SOURCE_PROPERTY_FORMAT above). Plain .cpp
+# files are compiled directly by the host C++ compiler and never get this
+# macro, which trips HIP's own headers (e.g. hip/linker_types.h) into a hard
+# #error. Define it explicitly for every source in the target based on the
+# HIP_PLATFORM detected by FindHIP.cmake.
+if(HIP_PLATFORM STREQUAL "nvidia")
+  target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_NVIDIA__)
+else()
+  target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_AMD__)
+endif()
+
 if(HPLMXP_DEBUG)
   target_compile_definitions(rochplmxp PRIVATE HPLMXP_DEBUG)
 endif()
