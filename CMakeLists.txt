@@ -149,6 +149,14 @@ target_compile_options(rochplmxp PRIVATE ${CMAKE_HOST_FLAGS})
 # HIP_PLATFORM detected by FindHIP.cmake.
 if(HIP_PLATFORM STREQUAL "nvidia")
   target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_NVIDIA__)
+
+  # HIP's nvidia_detail headers (e.g. nvidia_hip_runtime_api.h) directly
+  # #include <cuda.h> (the CUDA driver API header). nvcc already knows where
+  # this lives for the *_device.cpp sources it compiles itself, but the
+  # plain .cpp sources built with the host C++ compiler do not get the CUDA
+  # toolkit's include directory automatically - add it explicitly.
+  find_package(CUDAToolkit REQUIRED)
+  target_include_directories(rochplmxp PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 else()
   target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_AMD__)
 endif()
