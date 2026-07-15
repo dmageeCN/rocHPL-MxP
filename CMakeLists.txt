@@ -88,35 +88,52 @@ foreach(i ${rochplmxp_device_source})
 endforeach()
 
 # HIP flags workaround while target_compile_options does not work
-list(APPEND HIP_HIPCC_FLAGS "-Wno-unused-command-line-argument -fPIE")
 list(APPEND CMAKE_HOST_FLAGS "")
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  list(APPEND HIP_HIPCC_FLAGS "-g -ggdb")
-  list(APPEND CMAKE_HOST_FLAGS "-O0;-g")
+if(HIP_COMPILER STREQUAL "nvcc")
+  # On the NVIDIA backend, HIP_HIPCC_FLAGS is passed straight to nvcc, which
+  # does not understand clang/hipcc-style flags such as -march=native,
+  # -ffast-math, -Wno-unused-command-line-argument, or AMD --offload-arch=
+  # target names - so leave HIP_HIPCC_FLAGS untouched here rather than
+  # passing AMD-only flags to nvcc. Use the NVCC_APPEND_FLAGS environment
+  # variable (recognized natively by nvcc) to pass extra nvcc-specific
+  # options if needed, e.g.
+  # NVCC_APPEND_FLAGS="-forward-unknown-to-host-compiler -arch=sm_90".
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND CMAKE_HOST_FLAGS "-O0;-g")
+  else()
+    list(APPEND CMAKE_HOST_FLAGS "-O3;-march=native;-Wno-deprecated-declarations")
+  endif()
 else()
-  list(APPEND HIP_HIPCC_FLAGS "-O3 -march=native -ffp-contract=fast -ffast-math -funsafe-math-optimizations")
-  list(APPEND CMAKE_HOST_FLAGS "-O3;-march=native;-Wno-deprecated-declarations")
-endif()
+  list(APPEND HIP_HIPCC_FLAGS "-Wno-unused-command-line-argument -fPIE")
 
-# GPU arch targets
-set(TARGETS "gfx900;gfx906")
-if(HIP_VERSION VERSION_GREATER_EQUAL "3.7")
-  set(TARGETS "${TARGETS};gfx908")
-endif()
-if(HIP_VERSION VERSION_GREATER_EQUAL "4.3")
-  set(TARGETS "${TARGETS};gfx90a")
-endif()
-if (HIP_VERSION VERSION_GREATER_EQUAL "5.7")
-  set(TARGETS "${TARGETS};gfx942")
-endif()
-if (HIP_VERSION VERSION_GREATER_EQUAL "6.5")
-  set(TARGETS "${TARGETS};gfx950")
-endif()
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND HIP_HIPCC_FLAGS "-g -ggdb")
+    list(APPEND CMAKE_HOST_FLAGS "-O0;-g")
+  else()
+    list(APPEND HIP_HIPCC_FLAGS "-O3 -march=native -ffp-contract=fast -ffast-math -funsafe-math-optimizations")
+    list(APPEND CMAKE_HOST_FLAGS "-O3;-march=native;-Wno-deprecated-declarations")
+  endif()
 
-foreach(target ${TARGETS})
-  list(APPEND HIP_HIPCC_FLAGS "--offload-arch=${target}")
-endforeach()
+  # GPU arch targets (AMD only - clang/hipcc understands --offload-arch)
+  set(TARGETS "gfx900;gfx906")
+  if(HIP_VERSION VERSION_GREATER_EQUAL "3.7")
+    set(TARGETS "${TARGETS};gfx908")
+  endif()
+  if(HIP_VERSION VERSION_GREATER_EQUAL "4.3")
+    set(TARGETS "${TARGETS};gfx90a")
+  endif()
+  if (HIP_VERSION VERSION_GREATER_EQUAL "5.7")
+    set(TARGETS "${TARGETS};gfx942")
+  endif()
+  if (HIP_VERSION VERSION_GREATER_EQUAL "6.5")
+    set(TARGETS "${TARGETS};gfx950")
+  endif()
+
+  foreach(target ${TARGETS})
+    list(APPEND HIP_HIPCC_FLAGS "--offload-arch=${target}")
+  endforeach()
+endif()
 
 # Target executable
 hip_add_executable(rochplmxp ${rochplmxp_source} ${rochplmxp_device_source})
