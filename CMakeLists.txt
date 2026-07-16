@@ -212,6 +212,17 @@ target_include_directories(rochplmxp
 #HIP
 target_link_libraries(rochplmxp PRIVATE hip::host)
 
+# hip-config-nvidia.cmake defines hip::host/hip::device as plain INTERFACE
+# imported targets (include directories only) - unlike the AMD backend,
+# which links libamdhip64 for you, the NVIDIA backend does not link the
+# CUDA runtime automatically. HIP-on-CUDA forwards hip* calls straight to
+# cuda* calls (e.g. hipStreamSynchronize -> cudaStreamSynchronize), so
+# libcudart must be linked explicitly or the final link fails with
+# "undefined reference to ... @@libcudart".
+if(HIP_PLATFORM STREQUAL "nvidia")
+  target_link_libraries(rochplmxp PRIVATE CUDA::cudart)
+endif()
+
 # MPI
 target_link_libraries(rochplmxp PRIVATE MPI::MPI_CXX)
 
