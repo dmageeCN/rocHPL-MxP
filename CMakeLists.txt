@@ -157,6 +157,25 @@ if(HIP_PLATFORM STREQUAL "nvidia")
   # toolkit's include directory automatically - add it explicitly.
   find_package(CUDAToolkit REQUIRED)
   target_include_directories(rochplmxp PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+
+  # hip/library_types.h (under the HIP install's include dir) forwards to
+  # CUDA's own library_types.h via a *quoted* #include "library_types.h" on
+  # the NVIDIA platform. Quoted includes are searched starting from the
+  # directory of the including file itself, i.e. HIP's own include/hip/
+  # directory - which of course only contains HIP's own library_types.h, so
+  # this quoted include silently resolves back to itself. Its include guard
+  # is already defined at that point, so the re-inclusion expands to nothing,
+  # and cudaDataType (defined only in CUDA's real library_types.h) never gets
+  # declared, causing "'cudaDataType' has not been declared" errors in
+  # hipblas.h. Force CUDA's own library_types.h to be included first (before
+  # any HIP header gets a chance to self-reference), so its include guard is
+  # already set and cudaDataType is defined by the time it is needed.
+  find_file(HPLMXP_CUDA_LIBRARY_TYPES_H NAMES library_types.h
+            PATHS ${CUDAToolkit_INCLUDE_DIRS} NO_DEFAULT_PATH)
+  if(NOT HPLMXP_CUDA_LIBRARY_TYPES_H)
+    message(FATAL_ERROR "Could not find CUDA's library_types.h under ${CUDAToolkit_INCLUDE_DIRS}")
+  endif()
+  target_compile_options(rochplmxp PRIVATE -include ${HPLMXP_CUDA_LIBRARY_TYPES_H})
 else()
   target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_AMD__)
 endif()
