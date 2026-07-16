@@ -22,7 +22,7 @@ static T* HPLMXP_trtri_workspace(const int m) {
 
   if(m > work_ld) {
     if(work) CUDA_CHECK(cudaFree(work));
-    CUDA_CHECK(cudaMalloc(&work, sizeof(T) * (size_t)m * (size_t)m));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&work), sizeof(T) * (size_t)m * (size_t)m));
     work_ld = m;
   }
   return work;

@@ -11,7 +11,7 @@ static T* HPLMXP_getrf_workspace(const int size) {
 
   if(size > work_size) {
     if(work) CUDA_CHECK(cudaFree(work));
-    CUDA_CHECK(cudaMalloc(&work, sizeof(T) * (size_t)size));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&work), sizeof(T) * (size_t)size));
     work_size = size;
   }
   return work;

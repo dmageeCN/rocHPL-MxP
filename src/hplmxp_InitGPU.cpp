@@ -82,10 +82,11 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
   CUDA_CHECK(cudaSetDevice(dev));
 
   /* gpu */
-  CUDA_CHECK(cudaMalloc(&blas_info, sizeof(int)));
-  CUDA_CHECK(
-      cudaMalloc(&reduction_scratch, sizeof(double) * REDUCTION_SCRATCH_SIZE));
-  CUDA_CHECK(cudaMallocHost(&h_reduction_scratch, sizeof(double)));
+  CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&blas_info), sizeof(int)));
+  CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&reduction_scratch),
+                         sizeof(double) * REDUCTION_SCRATCH_SIZE));
+  CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_reduction_scratch),
+                            sizeof(double)));
 
   CUDA_CHECK(cudaStreamCreate(&computeStream));
 
