@@ -23,22 +23,27 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 option(HPLMXP_VERBOSE_PRINT   "Enable printing to terminal during run" OFF)
 option(HPLMXP_PROGRESS_REPORT "Enable printing progess report to terminal during run" OFF)
 option(HPLMXP_DETAILED_TIMING "Enable detailed timers during run" OFF)
-option(HPLMXP_TRACING         "Annotate profiler traces with rocTX markers" OFF)
+option(HPLMXP_TRACING         "Annotate profiler traces with NVTX markers" OFF)
 
-option(HIP_PATH "Path to HIP install" /opt/rocm)
 option(HPLMXP_MPI_DIR  "Path to MPI library" ${CMAKE_CURRENT_SOURCE_DIR}/tpl/openmpi)
+
+# CUDA architectures to build for. Defaults to "native" (CMake >= 3.24
+# detects the architecture(s) of the GPUs present on the build machine).
+# Override with e.g. -DCMAKE_CUDA_ARCHITECTURES=90 for H100.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES "native")
+endif()
 
 set(CMAKE_INSTALL_PREFIX "rocHPL-MxP" CACHE PATH "Install path prefix, prepended onto install directories")
 
 # CMake modules
 list(APPEND CMAKE_MODULE_PATH
-     ${CMAKE_CURRENT_SOURCE_DIR}/cmake
-     ${HIP_PATH}/hip/cmake)
+     ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Set a default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -47,29 +52,23 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-# Honor per-config flags in try_compile() source-file signature. cmake v3.7 and up
-if(POLICY CMP0066)
-  cmake_policy(SET CMP0066 NEW)
-endif()
-
 # rocHPL-MxP project
-project(rochplmxp LANGUAGES CXX)
+project(rochplmxp VERSION 2.1.0 LANGUAGES CXX CUDA)
 
 # Build flags
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 # Build options
 option(HPLMXP_DEBUG "Compile with modest debugging turned on" OFF)
 option(HPLMXP_DETAILED_DEBUG "Compile with voluminous debugging information turned on" OFF)
-option(HPLMXP_DETAILED_TIMING "Enable detail timers" OFF)
 
 # Dependencies
 include(cmake/Dependencies.cmake)
-
-# Setup version
-rocm_setup_version(VERSION 2.1.0)
 
 # This option only works for make/nmake and the ninja generators, but no reason it shouldn't be on all the time
 # This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
@@ -78,107 +77,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # HPL sources
 file(GLOB_RECURSE rochplmxp_source RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
 
-# HPL device sources
+# HPL device sources - these contain __global__ kernels or <<<>>> kernel
+# launches and must be compiled by the CUDA compiler rather than the plain
+# host C++ compiler, even though they keep the .cpp extension.
 file(GLOB_RECURSE rochplmxp_device_source RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*_device.cpp")
-list(REMOVE_ITEM rochplmxp_source ${rochplmxp_device_source})
-
-# Flag source files as hip source files
-foreach(i ${rochplmxp_device_source})
-  set_source_files_properties(${i} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
-endforeach()
-
-# HIP flags workaround while target_compile_options does not work
-list(APPEND CMAKE_HOST_FLAGS "")
-
-if(HIP_COMPILER STREQUAL "nvcc")
-  # On the NVIDIA backend, HIP_HIPCC_FLAGS is passed straight to nvcc, which
-  # does not understand clang/hipcc-style flags such as -march=native,
-  # -ffast-math, -Wno-unused-command-line-argument, or AMD --offload-arch=
-  # target names - so leave HIP_HIPCC_FLAGS untouched here rather than
-  # passing AMD-only flags to nvcc. Use the NVCC_APPEND_FLAGS environment
-  # variable (recognized natively by nvcc) to pass extra nvcc-specific
-  # options if needed, e.g.
-  # NVCC_APPEND_FLAGS="-forward-unknown-to-host-compiler -arch=sm_90".
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND CMAKE_HOST_FLAGS "-O0;-g")
-  else()
-    list(APPEND CMAKE_HOST_FLAGS "-O3;-march=native;-Wno-deprecated-declarations")
-  endif()
-else()
-  list(APPEND HIP_HIPCC_FLAGS "-Wno-unused-command-line-argument -fPIE")
-
-  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND HIP_HIPCC_FLAGS "-g -ggdb")
-    list(APPEND CMAKE_HOST_FLAGS "-O0;-g")
-  else()
-    list(APPEND HIP_HIPCC_FLAGS "-O3 -march=native -ffp-contract=fast -ffast-math -funsafe-math-optimizations")
-    list(APPEND CMAKE_HOST_FLAGS "-O3;-march=native;-Wno-deprecated-declarations")
-  endif()
-
-  # GPU arch targets (AMD only - clang/hipcc understands --offload-arch)
-  set(TARGETS "gfx900;gfx906")
-  if(HIP_VERSION VERSION_GREATER_EQUAL "3.7")
-    set(TARGETS "${TARGETS};gfx908")
-  endif()
-  if(HIP_VERSION VERSION_GREATER_EQUAL "4.3")
-    set(TARGETS "${TARGETS};gfx90a")
-  endif()
-  if (HIP_VERSION VERSION_GREATER_EQUAL "5.7")
-    set(TARGETS "${TARGETS};gfx942")
-  endif()
-  if (HIP_VERSION VERSION_GREATER_EQUAL "6.5")
-    set(TARGETS "${TARGETS};gfx950")
-  endif()
-
-  foreach(target ${TARGETS})
-    list(APPEND HIP_HIPCC_FLAGS "--offload-arch=${target}")
-  endforeach()
-endif()
+set_source_files_properties(${rochplmxp_device_source} PROPERTIES LANGUAGE CUDA)
 
 # Target executable
-hip_add_executable(rochplmxp ${rochplmxp_source} ${rochplmxp_device_source})
+add_executable(rochplmxp ${rochplmxp_source})
 
-target_compile_options(rochplmxp PRIVATE ${CMAKE_HOST_FLAGS})
-
-# hip_add_executable() only arranges for __HIP_PLATFORM_AMD__/__HIP_PLATFORM_NVIDIA__
-# to be defined for sources routed through the special HIP compiler path (the
-# *_device.cpp files tagged with HIP_SOURCE_PROPERTY_FORMAT above). Plain .cpp
-# files are compiled directly by the host C++ compiler and never get this
-# macro, which trips HIP's own headers (e.g. hip/linker_types.h) into a hard
-# #error. Define it explicitly for every source in the target based on the
-# HIP_PLATFORM detected by FindHIP.cmake.
-if(HIP_PLATFORM STREQUAL "nvidia")
-  target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_NVIDIA__)
-
-  # HIP's nvidia_detail headers (e.g. nvidia_hip_runtime_api.h) directly
-  # #include <cuda.h> (the CUDA driver API header). nvcc already knows where
-  # this lives for the *_device.cpp sources it compiles itself, but the
-  # plain .cpp sources built with the host C++ compiler do not get the CUDA
-  # toolkit's include directory automatically - add it explicitly.
-  find_package(CUDAToolkit REQUIRED)
-  target_include_directories(rochplmxp PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
-
-  # hip/library_types.h (under the HIP install's include dir) forwards to
-  # CUDA's own library_types.h via a *quoted* #include "library_types.h" on
-  # the NVIDIA platform. Quoted includes are searched starting from the
-  # directory of the including file itself, i.e. HIP's own include/hip/
-  # directory - which of course only contains HIP's own library_types.h, so
-  # this quoted include silently resolves back to itself. Its include guard
-  # is already defined at that point, so the re-inclusion expands to nothing,
-  # and cudaDataType (defined only in CUDA's real library_types.h) never gets
-  # declared, causing "'cudaDataType' has not been declared" errors in
-  # hipblas.h. Force CUDA's own library_types.h to be included first (before
-  # any HIP header gets a chance to self-reference), so its include guard is
-  # already set and cudaDataType is defined by the time it is needed.
-  find_file(HPLMXP_CUDA_LIBRARY_TYPES_H NAMES library_types.h
-            PATHS ${CUDAToolkit_INCLUDE_DIRS} NO_DEFAULT_PATH)
-  if(NOT HPLMXP_CUDA_LIBRARY_TYPES_H)
-    message(FATAL_ERROR "Could not find CUDA's library_types.h under ${CUDAToolkit_INCLUDE_DIRS}")
-  endif()
-  target_compile_options(rochplmxp PRIVATE -include ${HPLMXP_CUDA_LIBRARY_TYPES_H})
-else()
-  target_compile_definitions(rochplmxp PRIVATE __HIP_PLATFORM_AMD__)
-endif()
+target_compile_options(rochplmxp PRIVATE
+  $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>>:-O0 -g>
+  $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<CONFIG:Debug>>>:-O3 -march=native -Wno-deprecated-declarations>
+  $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:-G -g>
+  $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<NOT:$<CONFIG:Debug>>>:-O3 --use_fast_math>
+)
 
 if(HPLMXP_DEBUG)
   target_compile_definitions(rochplmxp PRIVATE HPLMXP_DEBUG)
@@ -205,43 +118,23 @@ target_include_directories(rochplmxp
                            PRIVATE
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-                           $<BUILD_INTERFACE:${HIP_PATH}/include>
-                           $<BUILD_INTERFACE:${HPLMXP_MPI_DIR}/include>
-                           $<BUILD_INTERFACE:${HIP_PATH}/include/roctracer>)
+                           $<BUILD_INTERFACE:${HPLMXP_MPI_DIR}/include>)
 
-#HIP
-target_link_libraries(rochplmxp PRIVATE hip::host)
-
-# hip-config-nvidia.cmake defines hip::host/hip::device as plain INTERFACE
-# imported targets (include directories only) - unlike the AMD backend,
-# which links libamdhip64 for you, the NVIDIA backend does not link the
-# CUDA runtime automatically. HIP-on-CUDA forwards hip* calls straight to
-# cuda* calls (e.g. hipStreamSynchronize -> cudaStreamSynchronize), so
-# libcudart must be linked explicitly or the final link fails with
-# "undefined reference to ... @@libcudart".
-if(HIP_PLATFORM STREQUAL "nvidia")
-  target_link_libraries(rochplmxp PRIVATE CUDA::cudart)
-endif()
+# CUDA runtime, cuBLAS, cuSOLVER
+target_link_libraries(rochplmxp PRIVATE CUDA::cudart)
+target_link_libraries(rochplmxp PRIVATE CUDA::cublas)
+target_link_libraries(rochplmxp PRIVATE CUDA::cusolver)
 
 # MPI
 target_link_libraries(rochplmxp PRIVATE MPI::MPI_CXX)
 
-# Target link libraries
-target_link_libraries(rochplmxp PRIVATE roc::hipblas)
-target_link_libraries(rochplmxp PRIVATE roc::hipsolver)
-
 if(HPLMXP_TRACING)
-  target_link_libraries(rochplmxp PRIVATE roc::roctracer)
-  target_link_libraries(rochplmxp PRIVATE roc::roctx)
+  target_link_libraries(rochplmxp PRIVATE CUDA::nvToolsExt)
 endif()
 
 # Target properties
-set_target_properties(rochplmxp PROPERTIES VERSION ${rochplmxp_VERSION})
 set_target_properties(rochplmxp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
 set_target_properties(rochplmxp PROPERTIES LINKER_LANGUAGE CXX)
-
-set_target_properties(rochplmxp PROPERTIES HIP_ARCHITECTURES "${DEFAULT_AMDGPU_TARGETS}")
 
 # # Configure a header file to pass the rocHPL-MxP version
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/hplmxp_version.hpp.in"
@@ -260,28 +153,10 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/HPL-MxP.dat
      DESTINATION ${CMAKE_BINARY_DIR})
 
 # Install targets
-rocm_install_targets(TARGETS rochplmxp)
+install(TARGETS rochplmxp
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 install(PROGRAMS ${CMAKE_BINARY_DIR}/run_rochplmxp ${CMAKE_BINARY_DIR}/mpirun_rochplmxp
         DESTINATION ${CMAKE_INSTALL_PREFIX})
 install(FILES ${CMAKE_BINARY_DIR}/HPL-MxP.dat
         DESTINATION ${CMAKE_INSTALL_PREFIX})
-
-# Package specific CPACK vars
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "rocm-dev (>= 3.5.0)")
-set(CPACK_RPM_PACKAGE_REQUIRES "rocm-dev >= 3.5.0")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-
-if(NOT CPACK_PACKAGING_INSTALL_PREFIX)
-  set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
-endif()
-
-set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include")
-
-# Package name
-set(package_name rochplmxp)
-
-rocm_create_package(
-  NAME ${package_name}
-  DESCRIPTION "Radeon Open Compute HPL-MxP application"
-  MAINTAINER "Noel Chalmers")

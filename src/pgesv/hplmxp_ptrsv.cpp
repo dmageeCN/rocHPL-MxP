@@ -39,7 +39,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
 
   /* set value */
   HPLMXP_set(b * nbrow, 0.0, w1);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   for(int pj = 0; pj < nbcol; ++pj) {
     MPI_Request req_recv_pivv = MPI_REQUEST_NULL, req_recv_v = MPI_REQUEST_NULL;
@@ -82,7 +82,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
 
       HPLMXP_trsvL(b, W, b, x + b * istart);
 
-      HIP_CHECK(hipEventRecord(piv, computeStream));
+      CUDA_CHECK(cudaEventRecord(piv, computeStream));
 
       if(istart + 1 < nbrow) {
         HPLMXP_gemv(b,
@@ -97,7 +97,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
 
       if(!no_bottom) {
         /* sync */
-        HIP_CHECK(hipEventSynchronize(piv));
+        CUDA_CHECK(cudaEventSynchronize(piv));
         MPI_Send(
             x + b * istart, b, T2MPI<fp64_t>::type, bottom, 100, grid.col_comm);
       }
@@ -108,7 +108,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
         HPLMXP_axpy(b, 1.0, w2 + b * (istart + 1), w1 + b * (istart + 1));
 
         /* sync */
-        HIP_CHECK(hipStreamSynchronize(computeStream));
+        CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
         // compute others last
         if(istart + 2 < nbrow) {
@@ -137,7 +137,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
 
         if(istart + 2 < nbrow) {
           /* sync */
-          HIP_CHECK(hipStreamSynchronize(computeStream));
+          CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
           MPI_Send(w1 + b * (istart + 2),
                    b * (nbrow - istart - 2),
@@ -197,7 +197,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
       HPLMXP_axpy(b, 1.0, w2 + b * istart, w1 + b * istart);
 
       /* sync */
-      HIP_CHECK(hipStreamSynchronize(computeStream));
+      CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
       // compute others
       if(istart + 1 < nbrow) {
@@ -223,7 +223,7 @@ void HPLMXP_ptrsvL(HPLMXP_T_grid&         grid,
                     w1 + b * (istart + 1));
 
         /* sync */
-        HIP_CHECK(hipStreamSynchronize(computeStream));
+        CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
         MPI_Send(w1 + b * (istart + 1),
                  b * (nbrow - istart - 1),
@@ -273,7 +273,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
   fp64_t* w3 = w2 + b * nbrow;
 
   HPLMXP_set(b * nbrow, 0.0, w1);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   for(int pj = nbcol - 1; pj >= 0; --pj) {
     MPI_Request req_recv_pivv = MPI_REQUEST_NULL, req_recv_v = MPI_REQUEST_NULL;
@@ -317,7 +317,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
       // compute the pivot first
       HPLMXP_trsvU(b, W, b, x + b * (iend - 1));
 
-      HIP_CHECK(hipEventRecord(piv, computeStream));
+      CUDA_CHECK(cudaEventRecord(piv, computeStream));
 
       if(iend > 1) {
         HPLMXP_gemv(b,
@@ -332,7 +332,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
 
       if(!no_top) {
         /* sync */
-        HIP_CHECK(hipEventSynchronize(piv));
+        CUDA_CHECK(cudaEventSynchronize(piv));
 
         MPI_Send(x + b * (iend - 1),
                  b,
@@ -348,7 +348,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
         HPLMXP_axpy(b, 1.0, w2 + b * (iend - 2), w1 + b * (iend - 2));
 
         /* sync */
-        HIP_CHECK(hipStreamSynchronize(computeStream));
+        CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
         if(iend > 2) {
           HPLMXP_gemv(b * (iend - 2),
@@ -372,7 +372,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
 
         if(iend > 2) {
           /* sync */
-          HIP_CHECK(hipStreamSynchronize(computeStream));
+          CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
           MPI_Send(w1,
                    b * (iend - 2),
@@ -434,7 +434,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
       HPLMXP_axpy(b, 1.0, w2 + b * (iend - 1), w1 + b * (iend - 1));
 
       /* sync */
-      HIP_CHECK(hipStreamSynchronize(computeStream));
+      CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
       // compute others last
       if(iend > 1) {
@@ -455,7 +455,7 @@ void HPLMXP_ptrsvU(HPLMXP_T_grid&         grid,
         HPLMXP_axpy(b * (iend - 1), 1.0, w2, w1);
 
         /* sync */
-        HIP_CHECK(hipStreamSynchronize(computeStream));
+        CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
         MPI_Send(
             w1, b * (iend - 1), T2MPI<fp64_t>::type, left, 200, grid.row_comm);

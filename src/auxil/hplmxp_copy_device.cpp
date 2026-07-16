@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_DIM 256
 
@@ -36,7 +36,7 @@ void HPLMXP_copy(const int N, const T* x, T* y) {
   dim3 block_size(BLOCK_DIM);
 
   hpl_copy_knl<<<grid_size, block_size, 0, computeStream>>>(N, x, y);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_copy(const int n, const double* x, double* y);

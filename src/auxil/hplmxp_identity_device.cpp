@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_DIM 256
 
@@ -143,7 +143,7 @@ void HPLMXP_identity(const int M, T* A, const int LDA) {
 
   HPLMXP_identity_kernel<<<grid_size, block_size, 0, computeStream>>>(
       M, A, LDA);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_identity(const int m, double* A, const int lda);

@@ -136,14 +136,14 @@ void HPLMXP_pgemv(HPLMXP_T_grid&         grid,
   stat_ij *= pow(jump_j, nb * mycol);
 
   /* sync to ensure x is ready */
-  HIP_CHECK(hipStreamSynchronize(computeStream));
+  CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
   // first: initialize y data
   dim3 bs(256);
   dim3 gs((nb * nbrow + 256 - 1) / 256);
   pgemv_init_knl<<<gs, bs, 0, computeStream>>>(
       nbrow, nb, myrow, mycol, nprow, npcol, beta, y);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 
   bs = dim3(GEMV_DIM_KNL);
   gs = dim3(nb, nbrow);
@@ -170,7 +170,7 @@ void HPLMXP_pgemv(HPLMXP_T_grid&         grid,
                                                alpha,
                                                x + bj * nb,
                                                y);
-    HIP_CHECK(hipGetLastError());
+    CUDA_CHECK(cudaGetLastError());
 
     stat_ij *= jump_qnb; // shift by Q*NB columns to next panel
 
@@ -179,7 +179,7 @@ void HPLMXP_pgemv(HPLMXP_T_grid&         grid,
   }
 
   /* sync */
-  HIP_CHECK(hipStreamSynchronize(computeStream));
+  CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
   MPI_Allreduce(
       MPI_IN_PLACE, y, nb * nbrow, T2MPI<fp64_t>::type, MPI_SUM, grid.row_comm);

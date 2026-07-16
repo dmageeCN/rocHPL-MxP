@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_DIM 256
 
@@ -62,7 +62,7 @@ void HPLMXP_ptranspose(HPLMXP_T_grid& grid,
 
   ptranspose_knl<<<grid_size, block_size, 0, computeStream>>>(
       N, NB, grid.myrow, grid.mycol, grid.nprow, grid.npcol, x, y);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_ptranspose(HPLMXP_T_grid& grid,

@@ -57,7 +57,7 @@ int HPLMXP_bcast(T*           SBUF,
 
   int ierr;
 
-  // roctxRangePush("HPLMXP_Bcast");
+  // nvtxRangePushA("HPLMXP_Bcast");
 
 #ifdef HPLMXP_USE_COLLECTIVES
 
@@ -89,7 +89,7 @@ int HPLMXP_bcast(T*           SBUF,
 
 #endif
 
-  // roctxRangePop();
+  // nvtxRangePop();
 
   return ((ierr == MPI_SUCCESS ? HPLMXP_SUCCESS : HPLMXP_FAILURE));
 }

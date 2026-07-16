@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_DIM 256
 
@@ -36,7 +36,7 @@ void HPLMXP_scale(const int N, const T alpha, T* x) {
   dim3 block_size(BLOCK_DIM);
 
   hpl_scale_knl<<<grid_size, block_size, 0, computeStream>>>(N, alpha, x);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_scale(const int n, const double alpha, double* x);

@@ -235,15 +235,15 @@ void HPLMXP_prandmat(HPLMXP_T_grid& grid, HPLMXP_T_pmat<T>& A) {
                                             jump_pnb,
                                             jump_qnb,
                                             d);
-  HIP_CHECK(hipGetLastError());
-  HIP_CHECK(hipStreamSynchronize(computeStream));
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
   // generate matrix
   gs = dim3(b, nbcol);
   bs = dim3(RANDMAT_DIM);
   randmat<<<gs, bs, 0, computeStream>>>(
       n, b, nbrow, stat_ij, jump_i, jump_j, jump_pnb, jump_qnb, A.A, A.ld);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 
   // assemble diagonal
   HPLMXP_all_reduce(d, b * nbrow, HPLMXP_SUM, grid.row_comm);
@@ -253,7 +253,7 @@ void HPLMXP_prandmat(HPLMXP_T_grid& grid, HPLMXP_T_pmat<T>& A) {
   bs = RANDMAT_RHS_DIM;
   randmat_write_diag<<<gs, bs, 0, computeStream>>>(
       n, b, myrow, mycol, nprow, npcol, d, A.A, A.ld);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_prandmat(HPLMXP_T_grid& grid, HPLMXP_T_pmat<double>& A);
@@ -285,7 +285,7 @@ void HPLMXP_prandmat_rhs(HPLMXP_T_grid& grid, HPLMXP_T_pmat<T>& A) {
   int bs = RANDMAT_RHS_DIM;
   randmat_rhs<<<gs, bs, 0, computeStream>>>(
       n, nb, myrow, mycol, nprow, npcol, stat_rhs, jump_i, jump_pnb, A.b);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 
   A.normb = HPLMXP_plange(grid, nb * nbrow, nb, A.b);
 }
@@ -332,9 +332,9 @@ void HPLMXP_prandmat_x(HPLMXP_T_grid& grid, HPLMXP_T_pmat<T>& A) {
                                             jump_pnb,
                                             jump_qnb,
                                             A.d);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 
-  HIP_CHECK(hipStreamSynchronize(computeStream));
+  CUDA_CHECK(cudaStreamSynchronize(computeStream));
 
   HPLMXP_all_reduce(A.d, nb * nbrow, HPLMXP_SUM, grid.row_comm);
 

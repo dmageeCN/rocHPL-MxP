@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_DIM 256
 
@@ -151,7 +151,7 @@ void HPLMXP_lacpyL(const int M,
 
   HPLMXP_lacpyL_kernel<<<grid_size, block_size, 0, computeStream>>>(
       M, N, A, LDA, B, LDB);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_lacpyL(const int     m,

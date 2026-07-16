@@ -24,10 +24,10 @@ function display_help()
   echo "    [-g|--debug] Set build type to Debug (otherwise build Release)"
   echo "    [--prefix] Path to rocHPL-MxP install location (Default: build/rocHPL-MxP)"
   echo "    [--build-dir] Path to build directory (Default: ./build)"
-  echo "    [--with-hip=<dir>] Path to HIP install (Default: /opt/rocm)"
+  echo "    [--with-cuda=<dir>] Path to CUDA Toolkit install (Default: /usr/local/cuda)"
   echo "    [--with-mpi=<dir>] Path to external MPI install (Default: clone+build OpenMPI)"
   echo "    [--verbose-print] Verbose output during HPL setup (Default: on)"
-  echo "    [--enable-tracing] Annotate profiler traces with rocTX markers (Default: off)"
+  echo "    [--enable-tracing] Annotate profiler traces with NVTX markers (Default: off)"
   echo "    [--progress-report] Print progress report to terminal during HPL run (Default: on)"
   echo "    [--detailed-timing] Record detailed timers during HPL run (Default: on)"
 }
@@ -62,11 +62,11 @@ exit_with_error( )
     local library_dependencies_fedora=( "git" "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" "numactl-libs"  "autoconf" "libtool" "automake" "m4" "flex" "libgomp")
     local library_dependencies_sles=(   "git" "make" "cmake" "gcc-c++" "libcxxtools9" "rpm-build" "libnuma-devel" "autoconf" "libtool" "automake" "m4" "flex" "libgomp1")
 
-    if [[ "${with_hip}" == /opt/rocm ]]; then
-      library_dependencies_ubuntu+=("hipblas" "hipblas-dev" "hipsolver" "hipsolver-dev")
-      library_dependencies_centos+=("hipblas" "hipblas-devel" "hipsolver" "hipsolver-devel")
-      library_dependencies_fedora+=("hipblas" "hipblas-dev" "hipsolver" "hipsolver-dev")
-      library_dependencies_sles+=("hipblas" "hipblas-devel" "hipsolver" "hipsolver-devel")
+    if [[ "${with_cuda}" == /usr/local/cuda ]]; then
+      library_dependencies_ubuntu+=("cuda-toolkit")
+      library_dependencies_centos+=("cuda-toolkit")
+      library_dependencies_fedora+=("cuda-toolkit")
+      library_dependencies_sles+=("cuda-toolkit")
     fi
 
     printf "Installation failed. Some required packages may be missing.\n"
@@ -120,7 +120,7 @@ install_openmpi( )
     ./autogen.sh; ./autogen.sh #why do we have to run this twice?
     check_exit_code 2
     mkdir build; cd build
-    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_hip} --without-knem --without-cuda --without-java
+    ../contrib/configure-opt --prefix=${PWD}/../ --with-cuda=${with_cuda} --without-knem --without-rocm --without-java
     check_exit_code 2
     make -j$(nproc)
     check_exit_code 2
@@ -129,13 +129,13 @@ install_openmpi( )
     cd ../../..
   elif ([ ! -f "${ucx_lib_folder}/libucm.so" ] || [ ! -f "${ucx_lib_folder}/libucp.so" ]  || \
         [ ! -f "${ucx_lib_folder}/libucs.so" ] || [ ! -f "${ucx_lib_folder}/libuct.so" ]) && \
-       ([ ! -f "${ucx_lib64_folder}/libucm.so" ] || [ ! -f "${ucx_lib64_folder}/libucp.so" ]  || \
+        ([ ! -f "${ucx_lib64_folder}/libucm.so" ] || [ ! -f "${ucx_lib64_folder}/libucp.so" ]  || \
         [ ! -f "${ucx_lib64_folder}/libucs.so" ] || [ ! -f "${ucx_lib64_folder}/libuct.so" ]); then
     cd tpl/ucx;
     ./autogen.sh; ./autogen.sh
     check_exit_code 2
     mkdir build; cd build
-    ../contrib/configure-opt --prefix=${PWD}/../ --with-rocm=${with_hip} --without-knem --without-cuda --without-java
+    ../contrib/configure-opt --prefix=${PWD}/../ --with-cuda=${with_cuda} --without-knem --without-rocm --without-java
     check_exit_code 2
     make -j$(nproc)
     check_exit_code 2
@@ -218,7 +218,7 @@ supported_distro
 install_prefix=rocHPL-MxP
 build_dir=./build
 build_release=true
-with_hip=/opt/rocm
+with_cuda=/usr/local/cuda
 with_mpi=tpl/openmpi
 verbose_print=OFF
 enable_tracing=OFF
@@ -232,7 +232,7 @@ detailed_timing=OFF
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,build-dir:,with-hip:,with-mpi:,verbose-print,enable-tracing,progress-report,detailed-timing --options hg -- "$@")
+  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,debug,prefix:,build-dir:,with-cuda:,with-mpi:,verbose-print,enable-tracing,progress-report,detailed-timing --options hg -- "$@")
 else
   echo "Need a new version of getopt"
   exit_with_error 1
@@ -260,8 +260,8 @@ while true; do
     --build-dir)
         build_dir=${2}
         shift 2 ;;
-    --with-hip)
-        with_hip=${2}
+    --with-cuda)
+        with_cuda=${2}
         shift 2 ;;
     --with-mpi)
         with_mpi=${2}
@@ -297,11 +297,11 @@ rm -rf ${build_dir}
 # Default cmake executable is called cmake
 cmake_executable=cmake
 
-# We append customary hip path; if user provides custom hip path in ${path}, our
-# hard-coded path has lesser priority
-export HIP_PATH=${with_hip}
-export PATH=${PATH}:${HIP_PATH}/bin
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HIP_PATH}/lib:${HIP_PATH}/lib64
+# We append customary CUDA path; if user provides custom CUDA path in ${path},
+# our hard-coded path has lesser priority
+export CUDA_PATH=${with_cuda}
+export PATH=${PATH}:${CUDA_PATH}/bin
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_PATH}/lib:${CUDA_PATH}/lib64
 
 pushd .
   # #################################################
@@ -321,12 +321,12 @@ pushd .
   if [[ "${build_release}" == true ]]; then
     build_type="Release"
   fi
-  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi} -DHIP_PATH=${with_hip}"
+  cmake_common_options="-DCMAKE_INSTALL_PREFIX=${install_prefix} -DHPLMXP_MPI_DIR=${with_mpi} -DCUDAToolkit_ROOT=${with_cuda}"
   cmake_common_options+=" -DCMAKE_BUILD_TYPE=${build_type}"
   cmake_common_options+=" -DHPLMXP_VERBOSE_PRINT=${verbose_print} -DHPLMXP_PROGRESS_REPORT=${progress_report}"
   cmake_common_options+=" -DHPLMXP_DETAILED_TIMING=${detailed_timing} -DHPLMXP_TRACING=${enable_tracing}"
 
-  # Build library with AMD toolchain because of existence of device kernels
+  # Build library with the CUDA toolchain because of existence of device kernels
   mkdir -p ${build_dir} && cd ${build_dir}
   echo "${cmake_executable} ${cmake_common_options} ${THISDIR}"
   ${cmake_executable} ${cmake_common_options} ${THISDIR}

@@ -16,52 +16,52 @@
 #ifndef HPLMXP_BLAS_HPP
 #define HPLMXP_BLAS_HPP
 
-#include "hipblas/hipblas.h"
-#include "hipsolver/hipsolver.h"
+#include <cublas_v2.h>
+#include <cusolverDn.h>
 
-#define HIP_CHECK(val) hipCheck((val), #val, __FILE__, __LINE__)
-inline void hipCheck(hipError_t        err,
-                     const char* const func,
-                     const char* const file,
-                     const int         line) {
-  if(err != hipSuccess) {
+#define CUDA_CHECK(val) cudaCheck((val), #val, __FILE__, __LINE__)
+inline void cudaCheck(cudaError_t       err,
+                      const char* const func,
+                      const char* const file,
+                      const int         line) {
+  if(err != cudaSuccess) {
     fprintf(
         stderr,
-        "Error: HIP runtime error in file %s, line %d, error code: %s, %s\n",
+        "Error: CUDA runtime error in file %s, line %d, error code: %s, %s\n",
         file,
         line,
-        hipGetErrorString(err),
+        cudaGetErrorString(err),
         func);
     exit(err);
   }
 }
 
-#define HIPBLAS_CHECK(val) hipBLASCheck((val), #val, __FILE__, __LINE__)
-inline void hipBLASCheck(hipblasStatus_t   err,
-                         const char* const func,
-                         const char* const file,
-                         const int         line) {
-  if(err != HIPBLAS_STATUS_SUCCESS) {
+#define CUBLAS_CHECK(val) cublasCheck((val), #val, __FILE__, __LINE__)
+inline void cublasCheck(cublasStatus_t    err,
+                        const char* const func,
+                        const char* const file,
+                        const int         line) {
+  if(err != CUBLAS_STATUS_SUCCESS) {
     fprintf(stderr,
-            "Error: hipblas error in file %s, line %d, error code: %s, %s\n",
+            "Error: cublas error in file %s, line %d, error code: %s, %s\n",
             file,
             line,
-            hipblasStatusToString(err),
+            cublasGetStatusString(err),
             func);
     exit(err);
   }
 }
 
-// hipSOLVER has no equivalent of hipblasStatusToString, so the raw status
+// cuSOLVER has no equivalent of cublasGetStatusString, so the raw status
 // code is printed instead.
-#define HIPSOLVER_CHECK(val) hipSOLVERCheck((val), #val, __FILE__, __LINE__)
-inline void hipSOLVERCheck(hipsolverStatus_t err,
-                           const char* const func,
-                           const char* const file,
-                           const int         line) {
-  if(err != HIPSOLVER_STATUS_SUCCESS) {
+#define CUSOLVER_CHECK(val) cusolverCheck((val), #val, __FILE__, __LINE__)
+inline void cusolverCheck(cusolverStatus_t  err,
+                          const char* const func,
+                          const char* const file,
+                          const int         line) {
+  if(err != CUSOLVER_STATUS_SUCCESS) {
     fprintf(stderr,
-            "Error: hipsolver error in file %s, line %d, error code: %d, %s\n",
+            "Error: cusolver error in file %s, line %d, error code: %d, %s\n",
             file,
             line,
             static_cast<int>(err),
@@ -70,14 +70,14 @@ inline void hipSOLVERCheck(hipsolverStatus_t err,
   }
 }
 
-extern hipblasHandle_t   blas_hdl;
-extern hipsolverHandle_t solver_hdl;
-extern hipStream_t       computeStream;
-extern int*              blas_info;
+extern cublasHandle_t   blas_hdl;
+extern cusolverDnHandle_t solver_hdl;
+extern cudaStream_t     computeStream;
+extern int*             blas_info;
 
-extern hipEvent_t getrf, lbcast, ubcast;
-extern hipEvent_t piv;
-extern hipEvent_t DgemmStart, DgemmEnd, LgemmStart, LgemmEnd, UgemmStart,
+extern cudaEvent_t getrf, lbcast, ubcast;
+extern cudaEvent_t piv;
+extern cudaEvent_t DgemmStart, DgemmEnd, LgemmStart, LgemmEnd, UgemmStart,
     UgemmEnd, TgemmStart, TgemmEnd;
 
 #define REDUCTION_SCRATCH_SIZE 512

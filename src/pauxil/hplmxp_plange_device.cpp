@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_SIZE 512
 
@@ -129,17 +129,17 @@ T HPLMXP_plange(const HPLMXP_T_grid& GRID,
 
   norminf_1<<<grid_size, BLOCK_SIZE, 0, computeStream>>>(
       N, NB, myrow, mycol, nprow, npcol, x, norm_scratch);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
   norminf_2<<<1, BLOCK_SIZE, 0, computeStream>>>(grid_size, norm_scratch);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 
   T norm = 0.0;
-  HIP_CHECK(hipMemcpyAsync(h_norm,
+  CUDA_CHECK(cudaMemcpyAsync(h_norm,
                            norm_scratch,
                            1 * sizeof(T),
-                           hipMemcpyDeviceToHost,
+                           cudaMemcpyDeviceToHost,
                            computeStream));
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   HPLMXP_all_reduce(h_norm, 1, HPLMXP_MAX, GRID.all_comm);
 

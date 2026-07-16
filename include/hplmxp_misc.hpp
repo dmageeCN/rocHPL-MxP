@@ -62,8 +62,8 @@
 #define HPL_PTR(ptr_, al_) ((((size_t)(ptr_) + (al_)-1) / (al_)) * (al_))
 
 #ifdef HPLMXP_TRACING
-#define HPLMXP_TracingPush(label) roctxRangePush(label)
-#define HPLMXP_TracingPop(label) roctxRangePop()
+#define HPLMXP_TracingPush(label) nvtxRangePushA(label)
+#define HPLMXP_TracingPop(label) nvtxRangePop()
 #else
 #define HPLMXP_TracingPush(label)
 #define HPLMXP_TracingPop(label)

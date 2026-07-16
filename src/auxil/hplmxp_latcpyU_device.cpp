@@ -15,7 +15,7 @@
  */
 
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 template <typename T,
           typename U,
@@ -255,7 +255,7 @@ void HPLMXP_latcpyU(const int M,
 
   HPLMXP_latcpyU_kernel<T, U, BLOCK_DIM_X, BLOCK_DIM_Y, TILE_DIM_X, TILE_DIM_Y>
       <<<grid_size, block_size, 0, computeStream>>>(M, N, A, LDA, B, LDB);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 // Specialization for converting from float to __half
@@ -280,7 +280,7 @@ void HPLMXP_latcpyU(const int    M,
 
   HPLMXP_latcpyU_kernel_half<BLOCK_DIM_X, BLOCK_DIM_Y, TILE_DIM_X, TILE_DIM_Y>
       <<<grid_size, block_size, 0, computeStream>>>(M, N, A, LDA, B, LDB);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_latcpyU(const int     m,

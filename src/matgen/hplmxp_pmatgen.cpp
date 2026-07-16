@@ -5,10 +5,10 @@ static int deviceMalloc(HPLMXP_T_grid&  grid,
                         void**          ptr,
                         const size_t    bytes) {
 
-  hipError_t err = hipMalloc(ptr, bytes);
+  cudaError_t err = cudaMalloc(ptr, bytes);
 
   /*Check allocation is valid*/
-  int error = (err != hipSuccess);
+  int error = (err != cudaSuccess);
   HPLMXP_all_reduce(&error, 1, HPLMXP_MAX, grid.all_comm);
   if(error != 0) {
     return HPLMXP_FAILURE;
@@ -224,7 +224,7 @@ void HPLMXP_Warmup(HPLMXP_T_grid&         grid,
   HPLMXP_pdpanel_init(grid, LU, LU.n, b, 0, 0, 0, 0, LU.panels[1]);
 
   HPLMXP_lacpy(b, b, Ap, lda, LU.piv, ldpiv);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
   HPLMXP_bcast(LU.piv, ldpiv * b, 0, grid.col_comm, algo.btopo);
   HPLMXP_bcast(LU.piv, ldpiv * b, 0, grid.row_comm, algo.btopo);
 
@@ -262,7 +262,7 @@ void HPLMXP_Warmup(HPLMXP_T_grid&         grid,
                 LU.panels[1].U,
                 LU.panels[1].ldu);
 
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
   HPLMXP_bcast(LU.panels[0].L, LU.panels[0].ldl * b, 0, grid.row_comm, algo.btopo);
   HPLMXP_bcast(LU.panels[1].L, LU.panels[1].ldl * b, 0, grid.row_comm, algo.btopo);
   HPLMXP_bcast(LU.panels[0].U, LU.panels[0].ldu * b, 0, grid.col_comm, algo.btopo);

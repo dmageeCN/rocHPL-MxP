@@ -1,5 +1,5 @@
 #include "hplmxp.hpp"
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 
 /* config */
 #define GEMV_USE_MED_KNL 1
@@ -217,7 +217,7 @@ void HPLMXP_gemv(const int m,
   gemv_kernel<GEMVN_DIM_X, GEMVN_DIM_Y, U, T>
       <<<gemvn_grid, gemvn_threads, 0, computeStream>>>(
           m, n, alpha, A, lda, x, 1, beta, y, 1);
-  HIP_CHECK(hipGetLastError());
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template void HPLMXP_gemv(const int     m,
@@ -247,18 +247,18 @@ void HPLMXP_gemv(const int     m,
                  const double* x,
                  const double  beta,
                  double*       y) {
-  HIPBLAS_CHECK(hipblasDgemv(blas_hdl,
-                             HIPBLAS_OP_N,
-                             m,
-                             n,
-                             &alpha,
-                             A,
-                             lda,
-                             x,
-                             1,
-                             &beta,
-                             y,
-                             1));
+  CUBLAS_CHECK(cublasDgemv(blas_hdl,
+                            CUBLAS_OP_N,
+                            m,
+                            n,
+                            &alpha,
+                            A,
+                            lda,
+                            x,
+                            1,
+                            &beta,
+                            y,
+                            1));
 }
 
 template <>
@@ -270,16 +270,16 @@ void HPLMXP_gemv(const int    m,
                  const float* x,
                  const float  beta,
                  float*       y) {
-  HIPBLAS_CHECK(hipblasSgemv(blas_hdl,
-                             HIPBLAS_OP_N,
-                             m,
-                             n,
-                             &alpha,
-                             A,
-                             lda,
-                             x,
-                             1,
-                             &beta,
-                             y,
-                             1));
+  CUBLAS_CHECK(cublasSgemv(blas_hdl,
+                            CUBLAS_OP_N,
+                            m,
+                            n,
+                            &alpha,
+                            A,
+                            lda,
+                            x,
+                            1,
+                            &beta,
+                            y,
+                            1));
 }

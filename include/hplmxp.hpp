@@ -2,12 +2,11 @@
 #ifndef HPLMXP_HPP
 #define HPLMXP_HPP
 
-#include <hip/hip_runtime_api.h>
-#include <hip/hip_fp16.h>
+#include <cuda_runtime_api.h>
+#include <cuda_fp16.h>
 
 #ifdef HPLMXP_TRACING
-#include <roctracer.h>
-#include <roctx.h>
+#include <nvtx3/nvToolsExt.h>
 #endif
 
 /*

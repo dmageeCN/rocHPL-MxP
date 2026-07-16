@@ -20,10 +20,10 @@ static int deviceMalloc(HPLMXP_T_grid&  grid,
                         void**          ptr,
                         const size_t    bytes) {
 
-  hipError_t err = hipMalloc(ptr, bytes);
+  cudaError_t err = cudaMalloc(ptr, bytes);
 
   /*Check allocation is valid*/
-  int error = (err != hipSuccess);
+  int error = (err != cudaSuccess);
   HPLMXP_all_reduce(&error, 1, HPLMXP_MAX, grid.all_comm);
   if(error != 0) {
     return HPLMXP_FAILURE;

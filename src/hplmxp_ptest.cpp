@@ -135,7 +135,7 @@ void HPLMXP_ptest(HPLMXP_T_test& test,
     HPLMXP_prandmat(grid, LU);
     HPLMXP_prandmat_rhs(grid, A);
     HPLMXP_prandmat_x(grid, A);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     /*
      * Solve linear system

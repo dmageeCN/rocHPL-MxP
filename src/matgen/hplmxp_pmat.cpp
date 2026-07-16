@@ -62,7 +62,7 @@ template <typename T>
 void HPLMXP_pmat_free(HPLMXP_T_pmat<T>& A) {
 
   if(A.work) {
-    HIP_CHECK(hipFree(A.work));
+    CUDA_CHECK(cudaFree(A.work));
     A.work = nullptr;
   }
 
@@ -70,32 +70,32 @@ void HPLMXP_pmat_free(HPLMXP_T_pmat<T>& A) {
   HPLMXP_pdpanel_free(A.panels[0]);
 
   if(A.pivU) {
-    HIP_CHECK(hipFree(A.pivU));
+    CUDA_CHECK(cudaFree(A.pivU));
     A.pivU = nullptr;
   }
   if(A.pivL) {
-    HIP_CHECK(hipFree(A.pivL));
+    CUDA_CHECK(cudaFree(A.pivL));
     A.pivL = nullptr;
   }
   if(A.piv) {
-    HIP_CHECK(hipFree(A.piv));
+    CUDA_CHECK(cudaFree(A.piv));
     A.piv = nullptr;
   }
 
   if(A.b) {
-    HIP_CHECK(hipFree(A.b));
+    CUDA_CHECK(cudaFree(A.b));
     A.b = nullptr;
   }
   if(A.d) {
-    HIP_CHECK(hipFree(A.d));
+    CUDA_CHECK(cudaFree(A.d));
     A.d = nullptr;
   }
   if(A.x) {
-    HIP_CHECK(hipFree(A.x));
+    CUDA_CHECK(cudaFree(A.x));
     A.x = nullptr;
   }
   if(A.A) {
-    HIP_CHECK(hipFree(A.A));
+    CUDA_CHECK(cudaFree(A.A));
     A.A = nullptr;
   }
 }

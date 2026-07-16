@@ -11,16 +11,16 @@
 #include "hplmxp.hpp"
 #include <random>
 
-hipblasHandle_t   blas_hdl;
-hipsolverHandle_t solver_hdl;
-hipStream_t       computeStream;
-int*              blas_info;
-fp64_t*           reduction_scratch;
-fp64_t*           h_reduction_scratch;
+cublasHandle_t     blas_hdl;
+cusolverDnHandle_t solver_hdl;
+cudaStream_t       computeStream;
+int*               blas_info;
+fp64_t*            reduction_scratch;
+fp64_t*            h_reduction_scratch;
 
-hipEvent_t getrf, lbcast, ubcast;
-hipEvent_t piv;
-hipEvent_t DgemmStart, DgemmEnd, LgemmStart, LgemmEnd, UgemmStart, UgemmEnd,
+cudaEvent_t getrf, lbcast, ubcast;
+cudaEvent_t piv;
+cudaEvent_t DgemmStart, DgemmEnd, LgemmStart, LgemmEnd, UgemmStart, UgemmEnd,
     TgemmStart, TgemmEnd;
 
 static char host_name[MPI_MAX_PROCESSOR_NAME];
@@ -49,13 +49,13 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
 
   /* Find out how many GPUs are in the system and their device number */
   int deviceCount;
-  HIP_CHECK(hipGetDeviceCount(&deviceCount));
+  CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
 
   if(deviceCount < 1) {
     if(localRank == 0)
       HPLMXP_pabort(__LINE__,
                     "HPLMXP_InitGPU",
-                    "Node %s found no GPUs. Is the ROCm kernel module loaded?",
+                    "Node %s found no GPUs. Is the CUDA driver loaded?",
                     host_name);
     MPI_Finalize();
     exit(1);
@@ -65,8 +65,8 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
 
 #ifdef HPLMXP_VERBOSE_PRINT
   if(rank < localSize) {
-    hipDeviceProp_t props;
-    HIP_CHECK(hipGetDeviceProperties(&props, dev));
+    cudaDeviceProp props;
+    CUDA_CHECK(cudaGetDeviceProperties(&props, dev));
 
     printf("GPU  Binding: Process %d [(p,q)=(%d,%d)] GPU: %d, pciBusID %x \n",
            rank,
@@ -79,59 +79,59 @@ void HPLMXP_InitGPU(const HPLMXP_T_grid& grid) {
 
   /* Assign device to MPI process, initialize BLAS and probe device properties
    */
-  HIP_CHECK(hipSetDevice(dev));
+  CUDA_CHECK(cudaSetDevice(dev));
 
   /* gpu */
-  HIP_CHECK(hipMalloc(&blas_info, sizeof(int)));
-  HIP_CHECK(
-      hipMalloc(&reduction_scratch, sizeof(double) * REDUCTION_SCRATCH_SIZE));
-  HIP_CHECK(hipHostMalloc(&h_reduction_scratch, sizeof(double)));
+  CUDA_CHECK(cudaMalloc(&blas_info, sizeof(int)));
+  CUDA_CHECK(
+      cudaMalloc(&reduction_scratch, sizeof(double) * REDUCTION_SCRATCH_SIZE));
+  CUDA_CHECK(cudaMallocHost(&h_reduction_scratch, sizeof(double)));
 
-  HIP_CHECK(hipStreamCreate(&computeStream));
+  CUDA_CHECK(cudaStreamCreate(&computeStream));
 
-  HIP_CHECK(hipEventCreateWithFlags(&getrf, hipEventDisableTiming));
-  HIP_CHECK(hipEventCreateWithFlags(&lbcast, hipEventDisableTiming));
-  HIP_CHECK(hipEventCreateWithFlags(&ubcast, hipEventDisableTiming));
-  HIP_CHECK(hipEventCreate(&DgemmStart));
-  HIP_CHECK(hipEventCreate(&DgemmEnd));
-  HIP_CHECK(hipEventCreate(&LgemmStart));
-  HIP_CHECK(hipEventCreate(&LgemmEnd));
-  HIP_CHECK(hipEventCreate(&UgemmStart));
-  HIP_CHECK(hipEventCreate(&UgemmEnd));
-  HIP_CHECK(hipEventCreate(&TgemmStart));
-  HIP_CHECK(hipEventCreate(&TgemmEnd));
-  HIP_CHECK(hipEventCreate(&piv));
+  CUDA_CHECK(cudaEventCreateWithFlags(&getrf, cudaEventDisableTiming));
+  CUDA_CHECK(cudaEventCreateWithFlags(&lbcast, cudaEventDisableTiming));
+  CUDA_CHECK(cudaEventCreateWithFlags(&ubcast, cudaEventDisableTiming));
+  CUDA_CHECK(cudaEventCreate(&DgemmStart));
+  CUDA_CHECK(cudaEventCreate(&DgemmEnd));
+  CUDA_CHECK(cudaEventCreate(&LgemmStart));
+  CUDA_CHECK(cudaEventCreate(&LgemmEnd));
+  CUDA_CHECK(cudaEventCreate(&UgemmStart));
+  CUDA_CHECK(cudaEventCreate(&UgemmEnd));
+  CUDA_CHECK(cudaEventCreate(&TgemmStart));
+  CUDA_CHECK(cudaEventCreate(&TgemmEnd));
+  CUDA_CHECK(cudaEventCreate(&piv));
 
 
-  /* Create a hipBLAS handle */
-  HIPBLAS_CHECK(hipblasCreate(&blas_hdl));
-  HIPBLAS_CHECK(hipblasSetPointerMode(blas_hdl, HIPBLAS_POINTER_MODE_HOST));
-  HIPBLAS_CHECK(hipblasSetStream(blas_hdl, computeStream));
+  /* Create a cuBLAS handle */
+  CUBLAS_CHECK(cublasCreate(&blas_hdl));
+  CUBLAS_CHECK(cublasSetPointerMode(blas_hdl, CUBLAS_POINTER_MODE_HOST));
+  CUBLAS_CHECK(cublasSetStream(blas_hdl, computeStream));
 
-  /* Create a hipSOLVER handle */
-  HIPSOLVER_CHECK(hipsolverCreate(&solver_hdl));
-  HIPSOLVER_CHECK(hipsolverSetStream(solver_hdl, computeStream));
+  /* Create a cuSOLVER handle */
+  CUSOLVER_CHECK(cusolverDnCreate(&solver_hdl));
+  CUSOLVER_CHECK(cusolverDnSetStream(solver_hdl, computeStream));
 }
 
 void HPLMXP_FreeGPU() {
-  HIPBLAS_CHECK(hipblasDestroy(blas_hdl));
-  HIPSOLVER_CHECK(hipsolverDestroy(solver_hdl));
+  CUBLAS_CHECK(cublasDestroy(blas_hdl));
+  CUSOLVER_CHECK(cusolverDnDestroy(solver_hdl));
 
-  HIP_CHECK(hipEventDestroy(getrf));
-  HIP_CHECK(hipEventDestroy(lbcast));
-  HIP_CHECK(hipEventDestroy(ubcast));
-  HIP_CHECK(hipEventDestroy(DgemmStart));
-  HIP_CHECK(hipEventDestroy(DgemmEnd));
-  HIP_CHECK(hipEventDestroy(LgemmStart));
-  HIP_CHECK(hipEventDestroy(LgemmEnd));
-  HIP_CHECK(hipEventDestroy(UgemmStart));
-  HIP_CHECK(hipEventDestroy(UgemmEnd));
-  HIP_CHECK(hipEventDestroy(TgemmStart));
-  HIP_CHECK(hipEventDestroy(TgemmEnd));
-  HIP_CHECK(hipEventDestroy(piv));
+  CUDA_CHECK(cudaEventDestroy(getrf));
+  CUDA_CHECK(cudaEventDestroy(lbcast));
+  CUDA_CHECK(cudaEventDestroy(ubcast));
+  CUDA_CHECK(cudaEventDestroy(DgemmStart));
+  CUDA_CHECK(cudaEventDestroy(DgemmEnd));
+  CUDA_CHECK(cudaEventDestroy(LgemmStart));
+  CUDA_CHECK(cudaEventDestroy(LgemmEnd));
+  CUDA_CHECK(cudaEventDestroy(UgemmStart));
+  CUDA_CHECK(cudaEventDestroy(UgemmEnd));
+  CUDA_CHECK(cudaEventDestroy(TgemmStart));
+  CUDA_CHECK(cudaEventDestroy(TgemmEnd));
+  CUDA_CHECK(cudaEventDestroy(piv));
 
-  HIP_CHECK(hipFree(reduction_scratch));
-  HIP_CHECK(hipFree(blas_info));
+  CUDA_CHECK(cudaFree(reduction_scratch));
+  CUDA_CHECK(cudaFree(blas_info));
 
-  HIP_CHECK(hipStreamDestroy(computeStream));
+  CUDA_CHECK(cudaStreamDestroy(computeStream));
 }

@@ -83,8 +83,6 @@ supported_distro
 # #################################################
 # Grab options from CMake config
 rochplmxp_bin=@CMAKE_INSTALL_PREFIX@/bin/rochplmxp
-rocm_dir=@ROCM_PATH@
-rocblas_dir=@ROCBLAS_LIB_PATH@
 
 P=1
 Q=1
@@ -97,8 +95,6 @@ it=1
 filename=HPL-MxP.dat
 inputfile=false
 cmdrun=false
-
-export LD_LIBRARY_PATH=${rocblas_dir}:${blas_dir}:${rocm_dir}/lib:$LD_LIBRARY_PATH
 
 # #################################################
 # Parameter parsing
@@ -253,7 +249,7 @@ fi
 
 mygpu=$((rank))
 
-# export HIP_VISIBLE_DEVICES=$mygpu
+# export CUDA_VISIBLE_DEVICES=$mygpu
 
 rochplmxp_args="-P ${P} -Q ${Q} -p ${p} -q ${q} -it ${it}"
 if [[ "${inputfile}" == true ]]; then

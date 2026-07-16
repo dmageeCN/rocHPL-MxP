@@ -1,9 +1,9 @@
 
 #include "hplmxp.hpp"
 
-// Neither hipBLAS nor hipSOLVER expose a portable triangular matrix inverse
-// (hipblasDtrtri exists but is unimplemented on the NVIDIA backend, and
-// hipSOLVER has no trtri at all). Instead, invert A by solving a single
+// Neither cuBLAS nor cuSOLVER expose a direct triangular matrix inverse
+// (cuBLAS only has the batched, size-limited cublas<t>matinvBatched, and
+// cuSOLVER has no trtri at all). Instead, invert A by solving a single
 // triangular system against an identity matrix, using only the already
 // portable HPLMXP_trsmR/HPLMXP_trsmL primitives:
 //
@@ -21,8 +21,8 @@ static T* HPLMXP_trtri_workspace(const int m) {
   static int work_ld = 0;
 
   if(m > work_ld) {
-    if(work) HIP_CHECK(hipFree(work));
-    HIP_CHECK(hipMalloc(&work, sizeof(T) * (size_t)m * (size_t)m));
+    if(work) CUDA_CHECK(cudaFree(work));
+    CUDA_CHECK(cudaMalloc(&work, sizeof(T) * (size_t)m * (size_t)m));
     work_ld = m;
   }
   return work;

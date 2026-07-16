@@ -127,7 +127,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
     if(icurrow && icurcol) {
       /* Update look-ahead */
       if(k > 0) {
-        HIP_CHECK(hipEventRecord(DgemmStart, computeStream));
+        CUDA_CHECK(cudaEventRecord(DgemmStart, computeStream));
         HPLMXP_gemmNT(b,
                       b,
                       b,
@@ -139,7 +139,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                       beta,
                       Mptr(Ap, i * b, j * b, lda),
                       lda);
-        HIP_CHECK(hipEventRecord(DgemmEnd, computeStream));
+        CUDA_CHECK(cudaEventRecord(DgemmEnd, computeStream));
       }
 
       /* Factor panel */
@@ -150,13 +150,13 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
       HPLMXP_trtriL(b, A.piv, ldpiv);
 
       /* Record */
-      HIP_CHECK(hipEventRecord(getrf, computeStream));
+      CUDA_CHECK(cudaEventRecord(getrf, computeStream));
     }
 
     if(icurcol) {
       /* gemm L */
       if(k > 0) {
-        HIP_CHECK(hipEventRecord(LgemmStart, computeStream));
+        CUDA_CHECK(cudaEventRecord(LgemmStart, computeStream));
         HPLMXP_gemmNT(A.mp - ip1 * b,
                       b,
                       b,
@@ -168,7 +168,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                       beta,
                       Mptr(Ap, ip1 * b, j * b, lda),
                       lda);
-        HIP_CHECK(hipEventRecord(LgemmEnd, computeStream));
+        CUDA_CHECK(cudaEventRecord(LgemmEnd, computeStream));
       }
 
       HPLMXP_lacpy(A.mp - ip1 * b,
@@ -209,13 +209,13 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                    next.ldl);
 
       /* Record */
-      HIP_CHECK(hipEventRecord(lbcast, computeStream));
+      CUDA_CHECK(cudaEventRecord(lbcast, computeStream));
     }
 
     if(icurrow) {
       /* gemm U */
       if(k > 0) {
-        HIP_CHECK(hipEventRecord(UgemmStart, computeStream));
+        CUDA_CHECK(cudaEventRecord(UgemmStart, computeStream));
         HPLMXP_gemmNT(b,
                       A.nq - jp1 * b,
                       b,
@@ -227,7 +227,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                       beta,
                       Mptr(Ap, i * b, jp1 * b, lda),
                       lda);
-        HIP_CHECK(hipEventRecord(UgemmEnd, computeStream));
+        CUDA_CHECK(cudaEventRecord(UgemmEnd, computeStream));
       }
 
       HPLMXP_latcpy(A.nq - jp1 * b,
@@ -268,12 +268,12 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                     next.ldu);
 
       /* Record */
-      HIP_CHECK(hipEventRecord(ubcast, computeStream));
+      CUDA_CHECK(cudaEventRecord(ubcast, computeStream));
     }
 
     /* Trailing update */
     if(k > 0) {
-      HIP_CHECK(hipEventRecord(TgemmStart, computeStream));
+      CUDA_CHECK(cudaEventRecord(TgemmStart, computeStream));
       HPLMXP_gemmNT(A.mp - ip1 * b,
                     A.nq - jp1 * b,
                     b,
@@ -285,12 +285,12 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
                     beta,
                     Mptr(Ap, ip1 * b, jp1 * b, lda),
                     lda);
-      HIP_CHECK(hipEventRecord(TgemmEnd, computeStream));
+      CUDA_CHECK(cudaEventRecord(TgemmEnd, computeStream));
     }
 
     if(icurrow && icurcol) {
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
-      HIP_CHECK(hipEventSynchronize(getrf));
+      CUDA_CHECK(cudaEventSynchronize(getrf));
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
 
       /* broadcast piv */
@@ -311,7 +311,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
     /* broadcast left panel */
     if(icurcol) {
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
-      HIP_CHECK(hipEventSynchronize(lbcast));
+      CUDA_CHECK(cudaEventSynchronize(lbcast));
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
     }
     HPLMXP_TracingPush("L Bcast");
@@ -323,7 +323,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
     /* broadcast right panel */
     if(icurrow) {
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
-      HIP_CHECK(hipEventSynchronize(ubcast));
+      CUDA_CHECK(cudaEventSynchronize(ubcast));
       HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
     }
     HPLMXP_TracingPush("U Bcast");
@@ -334,7 +334,7 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
 
     /* wait here for the updates to compete */
     HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
     HPLMXP_ptimer(HPLMXP_TIMING_UPDATE);
 
     double stepEnd = MPI_Wtime();
@@ -343,22 +343,22 @@ void HPLMXP_pgetrf(HPLMXP_T_grid&         grid,
 #ifdef HPLMXP_DETAILED_TIMING
     DgemmTime = 0.0;
     if(k > 0 && icurrow && icurcol) {
-      HIP_CHECK(hipEventElapsedTime(&DgemmTime, DgemmStart, DgemmEnd));
+      CUDA_CHECK(cudaEventElapsedTime(&DgemmTime, DgemmStart, DgemmEnd));
       DgemmGflops = (2.0 * b * b * b) / (1.0e6 * (DgemmTime));
     }
     LgemmTime = 0.0;
     if(k > 0 && icurcol && (nbrow - ip1 > 0)) {
-      HIP_CHECK(hipEventElapsedTime(&LgemmTime, LgemmStart, LgemmEnd));
+      CUDA_CHECK(cudaEventElapsedTime(&LgemmTime, LgemmStart, LgemmEnd));
       LgemmGflops = (2.0 * b * b * b * (nbrow - ip1)) / (1.0e6 * (LgemmTime));
     }
     UgemmTime = 0.0;
     if(k > 0 && icurrow && (nbcol - jp1 > 0)) {
-      HIP_CHECK(hipEventElapsedTime(&UgemmTime, UgemmStart, UgemmEnd));
+      CUDA_CHECK(cudaEventElapsedTime(&UgemmTime, UgemmStart, UgemmEnd));
       UgemmGflops = (2.0 * b * b * b * (nbcol - jp1)) / (1.0e6 * (UgemmTime));
     }
     TgemmTime = 0.0;
     if(k > 0 && (nbrow - ip1 > 0) && (nbcol - jp1 > 0)) {
-      HIP_CHECK(hipEventElapsedTime(&TgemmTime, TgemmStart, TgemmEnd));
+      CUDA_CHECK(cudaEventElapsedTime(&TgemmTime, TgemmStart, TgemmEnd));
       TgemmGflops = (2.0 * b * b * (nbrow - ip1) * b * (nbcol - jp1)) /
                     (1.0e6 * (TgemmTime));
     }

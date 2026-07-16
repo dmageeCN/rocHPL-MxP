@@ -35,11 +35,11 @@ int HPLMXP_pdpanel_free(HPLMXP_T_panel<T>& P) {
    */
 
   if(P.L) {
-    HIP_CHECK(hipFree(P.L));
+    CUDA_CHECK(cudaFree(P.L));
     P.L = nullptr;
   }
   if(P.U) {
-    HIP_CHECK(hipFree(P.U));
+    CUDA_CHECK(cudaFree(P.U));
     P.U = nullptr;
   }
 
